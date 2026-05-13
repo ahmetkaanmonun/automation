@@ -1,0 +1,15 @@
+{
+  "name": "qa-automation-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:api": "npm run dev --prefix apps/api",
+    "dev:web": "npm run dev --prefix apps/web",
+    "build": "npm run build --prefix apps/api && npm run build --prefix apps/web",
+    "lint": "npm run lint --prefix apps/api",
+    "format": "prettier --write \"{apps,docs}/**/*.{ts,tsx,js,json,md,css,prisma}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}

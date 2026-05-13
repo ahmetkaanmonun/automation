@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TESTER
+  VIEWER
+}
+
+enum Environment {
+  DEV
+  TEST
+  PREPROD
+  PROD_LIKE
+}
+
+enum LocatorType {
+  ID
+  XPATH
+  CSS_SELECTOR
+  CLASS_NAME
+  NAME
+  TAG_NAME
+}
+
+enum StepAction {
+  OPEN_URL
+  CLICK
+  DOUBLE_CLICK
+  RIGHT_CLICK
+  INPUT_TEXT
+  CLEAR_INPUT
+  SELECT_DROPDOWN
+  UPLOAD_FILE
+  WAIT
+  WAIT_VISIBLE
+  WAIT_CLICKABLE
+  ASSERT_VISIBLE
+  ASSERT_TEXT
+  ASSERT_VALUE
+  ASSERT_URL
+  TAKE_SCREENSHOT
+  SCROLL
+  HOVER
+  API_REQUEST
+  CUSTOM_SCRIPT
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  SKIPPED
+}
+
+enum ScheduleType {
+  INTERVAL
+  DAILY
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  fullName     String         @map("full_name")
+  role         Role           @default(TESTER)
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  createdScenarios TestScenario[] @relation("ScenarioCreator")
+  updatedScenarios TestScenario[] @relation("ScenarioUpdater")
+  executions   Execution[]
+  schedules    ScheduledRun[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  modules     Module[]
+  locators    Locator[]
+  testData    TestData[]
+  testFiles   TestFile[]
+  scenarios   TestScenario[]
+
+  @@map("projects")
+}
+
+model Module {
+  id          String         @id @default(uuid())
+  projectId   String         @map("project_id")
+  name        String
+  description String?
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  locators    Locator[]
+  testData    TestData[]
+  testFiles   TestFile[]
+  scenarios   TestScenario[]
+
+  @@unique([projectId, name])
+  @@map("modules")
+}
+
+model Locator {
+  id          String           @id @default(uuid())
+  projectId   String           @map("project_id")
+  moduleId    String           @map("module_id")
+  name        String
+  description String?
+  type        LocatorType
+  value       String
+  page        String?
+  active      Boolean          @default(true)
+  version     Int              @default(1)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  module      Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  versions    LocatorVersion[]
+  steps       TestStep[]
+
+  @@unique([moduleId, name])
+  @@map("locators")
+}
+
+model LocatorVersion {
+  id          String      @id @default(uuid())
+  locatorId   String      @map("locator_id")
+  version     Int
+  type        LocatorType
+  value       String
+  description String?
+  page        String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  locator     Locator     @relation(fields: [locatorId], references: [id], onDelete: Cascade)
+
+  @@unique([locatorId, version])
+  @@map("locator_versions")
+}
+
+model TestData {
+  id             String       @id @default(uuid())
+  projectId      String       @map("project_id")
+  moduleId       String?      @map("module_id")
+  environment    Environment
+  key            String
+  value          String?
+  encryptedValue String?      @map("encrypted_value")
+  isSecret       Boolean      @default(false) @map("is_secret")
+  description    String?
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  module         Module?      @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  steps          TestStep[]
+
+  @@unique([projectId, moduleId, environment, key])
+  @@map("test_data")
+}
+
+model TestFile {
+  id           String        @id @default(uuid())
+  projectId    String        @map("project_id")
+  moduleId     String?       @map("module_id")
+  scenarioId   String?       @map("scenario_id")
+  originalName String        @map("original_name")
+  storageName  String        @map("storage_name")
+  mimeType     String        @map("mime_type")
+  size         Int
+  path         String
+  createdAt    DateTime      @default(now()) @map("created_at")
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  module       Module?       @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  scenario     TestScenario? @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+
+  @@map("test_files")
+}
+
+model TestScenario {
+  id            String          @id @default(uuid())
+  projectId     String          @map("project_id")
+  moduleId      String          @map("module_id")
+  environment   Environment
+  name          String
+  description   String?
+  tags          String[]        @default([])
+  active        Boolean         @default(true)
+  version       Int             @default(1)
+  lockedById    String?         @map("locked_by_id")
+  lockedAt      DateTime?       @map("locked_at")
+  createdById   String          @map("created_by_id")
+  updatedById   String?         @map("updated_by_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  module        Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  createdBy     User            @relation("ScenarioCreator", fields: [createdById], references: [id])
+  updatedBy     User?           @relation("ScenarioUpdater", fields: [updatedById], references: [id])
+  steps         TestStep[]
+  files         TestFile[]
+  executions    Execution[]
+  schedules     ScheduledRun[]
+
+  @@unique([moduleId, name, version])
+  @@map("test_scenarios")
+}
+
+model TestStep {
+  id            String        @id @default(uuid())
+  scenarioId    String        @map("scenario_id")
+  orderIndex    Int           @map("order_index")
+  name          String
+  action        StepAction
+  locatorId     String?       @map("locator_id")
+  testDataId    String?       @map("test_data_id")
+  inputValue    String?       @map("input_value")
+  expectedValue String?       @map("expected_value")
+  timeoutMs     Int?          @map("timeout_ms")
+  continueOnFail Boolean      @default(false) @map("continue_on_fail")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  scenario      TestScenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  locator       Locator?      @relation(fields: [locatorId], references: [id], onDelete: SetNull)
+  testData      TestData?     @relation(fields: [testDataId], references: [id], onDelete: SetNull)
+
+  @@unique([scenarioId, orderIndex])
+  @@map("test_steps")
+}
+
+model Execution {
+  id            String          @id @default(uuid())
+  scenarioId    String          @map("scenario_id")
+  environment   Environment
+  status        ExecutionStatus @default(PENDING)
+  startedById   String          @map("started_by_id")
+  startedAt     DateTime?       @map("started_at")
+  finishedAt    DateTime?       @map("finished_at")
+  durationMs    Int?            @map("duration_ms")
+  retryCount    Int             @default(0) @map("retry_count")
+  errorMessage  String?         @map("error_message")
+  screenshotPath String?        @map("screenshot_path")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  scenario      TestScenario    @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  startedBy     User            @relation(fields: [startedById], references: [id])
+  logs          ExecutionLog[]
+  report        ExecutionReport?
+
+  @@map("executions")
+}
+
+model ExecutionLog {
+  id          String          @id @default(uuid())
+  executionId String          @map("execution_id")
+  stepId      String?         @map("step_id")
+  status      ExecutionStatus
+  message     String
+  metadata    Json?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  execution   Execution       @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("execution_logs")
+}
+
+model ExecutionReport {
+  id          String     @id @default(uuid())
+  executionId String     @unique @map("execution_id")
+  htmlPath    String?    @map("html_path")
+  pdfPath     String?    @map("pdf_path")
+  excelPath   String?    @map("excel_path")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  execution   Execution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("execution_reports")
+}
+
+model ScheduledRun {
+  id              String       @id @default(uuid())
+  scenarioId      String       @map("scenario_id")
+  environment     Environment
+  scheduleType    ScheduleType @map("schedule_type")
+  intervalMinutes Int?         @map("interval_minutes")
+  timeOfDay       String?      @map("time_of_day")
+  nextRunAt       DateTime     @map("next_run_at")
+  lastRunAt       DateTime?    @map("last_run_at")
+  active          Boolean      @default(true)
+  createdById     String       @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  scenario        TestScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  createdBy       User         @relation(fields: [createdById], references: [id])
+
+  @@map("scheduled_runs")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  before     Json?
+  after      Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
