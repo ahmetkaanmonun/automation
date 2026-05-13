@@ -6,8 +6,6 @@ Internal web platform for managing projects, modules, locators, test data, files
 
 ![Dashboard](docs/images/dashboard.png)
 
-![Scenario Builder](docs/images/scenarios.png)
-
 ![Scheduled Runs](docs/images/scenario-schedules.png)
 
 More screens are available under `docs/images/`:
